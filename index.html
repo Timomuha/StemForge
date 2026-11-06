@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StemForge – split any song into stems</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0a0c12; --panel:#11151f; --panel-raised:#171c28; --line:#252c3b;
+    --text:#f4f3f8; --muted:#969db0; --accent:#ec4650; --accent-bright:#ff8381;
+    --waveform:#ff7777; --waveform-muted:#49363b;
+    --green:#77e3b1; --red:#ff8c91; --shadow:0 24px 80px #0005;
+  }
+  * { box-sizing:border-box; }
+  body {
+    min-width:320px; margin:0; color:var(--text);
+    font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:radial-gradient(ellipse at 50% -18%,#57232966,transparent 46%),var(--bg);
+  }
+  button,input,select { font:inherit; }
+  button { color:inherit; }
+  .shell { max-width:1060px; margin:auto; padding:0 28px 72px; }
+  .topbar { height:86px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #ffffff0b; }
+  .brand { display:flex; align-items:center; gap:11px; color:var(--text); font-size:18px; font-weight:750; letter-spacing:-.04em; }
+  .brand-mark { width:36px; height:36px; display:grid; place-items:center; color:#fff; border:1px solid #ffffff25; border-radius:12px; background:linear-gradient(145deg,#ff8581,#b51d37); box-shadow:0 5px 22px #d52d4a55; }
+  .brand-mark svg { width:19px; height:19px; }
+  .connection { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:12px; }
+  .connection-label { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:99px; background:#ffffff04; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#8790a3; box-shadow:0 0 10px currentColor; }
+  .connection.connected .dot { background:var(--green); color:var(--green); }
+  .connection.error .dot { background:var(--red); color:var(--red); }
+  .connection.warning .dot { background:#e9c779; color:#e9c779; }
+  .connection.checking .dot { background:var(--accent-bright); color:var(--accent-bright); animation:pulse 1.2s ease-in-out infinite; }
+  .connection button { padding:5px 9px; color:var(--muted); border:0; border-radius:8px; background:transparent; cursor:pointer; }
+  .connection button:hover { color:var(--text); background:#ffffff0b; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  .hero { max-width:710px; margin:73px auto 38px; text-align:center; }
+  .eyebrow { display:inline-flex; align-items:center; gap:8px; margin:0 0 18px; color:var(--accent-bright); font-size:11px; font-weight:750; letter-spacing:.15em; text-transform:uppercase; }
+  .eyebrow::before { width:18px; height:1px; content:""; background:currentColor; }
+  h1 { margin:0; font-size:clamp(43px,8vw,72px); font-weight:740; letter-spacing:-.075em; line-height:1.04; }
+  h1 span { color:var(--accent-bright); }
+  .subtitle { max-width:460px; margin:18px auto 0; color:var(--muted); font-size:16px; }
+  .card { border:1px solid #ffffff10; border-radius:20px; background:linear-gradient(145deg,#151a25,#10141d 72%); box-shadow:var(--shadow); }
+  .upload-card { max-width:760px; margin:0 auto; padding:24px; }
+  .drop { position:relative; display:grid; min-height:228px; padding:27px 22px; place-items:center; overflow:hidden; border:1px dashed #66424b; border-radius:15px; background:radial-gradient(ellipse at 50% 110%,#ec465016,transparent 63%),#ffffff02; text-align:center; cursor:pointer; transition:border-color .2s,background .2s,transform .2s; }
+  .drop:hover,.drop.over { transform:translateY(-1px); border-color:var(--accent-bright); background-color:#ec46500a; }
+  .drop-icon { display:grid; width:48px; height:48px; margin:0 auto 13px; place-items:center; color:var(--accent-bright); border:1px solid #ec465035; border-radius:15px; background:#ec465012; }
+  .drop-icon svg { width:23px; height:23px; }
+  .drop-title { margin:0; font-size:16px; font-weight:650; }
+  .drop-title span { color:var(--accent-bright); }
+  .drop-hint { margin:5px 0 0; color:var(--muted); font-size:13px; }
+  .file-note { margin:14px 0 0; color:#777f92; font-size:11px; letter-spacing:.04em; }
+  .hidden { display:none!important; }
+  .upload-options { display:grid; grid-template-columns:1fr auto; gap:12px; margin-top:17px; }
+  .mode-wrap { min-width:0; }
+  .field-label { display:block; margin:0 0 7px; color:var(--muted); font-size:11px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; }
+  select,.api-input { width:100%; min-height:46px; padding:0 13px; color:var(--text); border:1px solid var(--line); border-radius:11px; outline:0; background:#0d1119; }
+  select:focus,.api-input:focus { border-color:#dc5158; box-shadow:0 0 0 3px #ec46501c; }
+  .primary { display:inline-flex; min-height:46px; align-items:center; justify-content:center; gap:9px; padding:0 19px; border:1px solid #ff8986; border-radius:11px; background:linear-gradient(135deg,#f36b68,#bd293f); box-shadow:0 7px 22px #d3344933; color:#fff; font-weight:700; cursor:pointer; transition:transform .15s,filter .15s,opacity .15s; }
+  .primary:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.09); }
+  button:disabled { opacity:.48; cursor:not-allowed; }
+  .primary svg { width:17px; height:17px; }
+  .connection-box { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-top:19px; padding-top:16px; border-top:1px solid #ffffff0b; }
+  .connection-box .mode-wrap { flex:1 1 270px; }
+  .connection-box .primary { min-height:41px; padding:0 14px; font-size:13px; }
+  .status-line { min-height:22px; margin:13px 2px 0; color:var(--muted); font-size:13px; }
+  .status-line.err { color:var(--red); }
+  .status-line.ok { color:var(--green); }
+  .status-line.warn { color:#e9c779; }
+  .bar { height:4px; margin-top:14px; overflow:hidden; border-radius:9px; background:#282d3b; }
+  .bar > div { height:100%; width:0; border-radius:9px; background:linear-gradient(90deg,#c52c43,#ff9890); box-shadow:0 0 14px #ef536799; transition:width .25s; }
+  .trust-row { display:flex; justify-content:center; flex-wrap:wrap; gap:10px 24px; margin:21px 0 0; color:#838b9d; font-size:11px; }
+  .trust-row span { display:flex; align-items:center; gap:7px; }
+  .trust-row svg { width:14px; height:14px; color:var(--green); }
+  .mixer { max-width:900px; margin:28px auto 0; padding:23px; }
+  .mixer-header { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; }
+  .mixer-title { margin:0; font-size:19px; letter-spacing:-.035em; }
+  .mixer-caption { margin:3px 0 0; color:var(--muted); font-size:12px; }
+  .transport { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .transport button,.stem button,.stem-download,.zip-link { min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:9px; background:#ffffff06; font-size:12px; text-decoration:none; cursor:pointer; transition:background .15s,border-color .15s; }
+  .transport button:hover,.stem button:hover,.stem-download:hover,.zip-link:hover { border-color:#885258; background:#ec465012; }
+  .transport .play-button { border-color:#ef7775; background:#c83249; font-weight:700; }
+  .time { margin-left:auto; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--accent-bright); cursor:pointer; }
+  .seek { display:block; margin:0 0 17px; }
+  .stem { display:grid; grid-template-columns:90px minmax(150px,1fr) minmax(90px,.55fr) 52px 52px 40px; gap:10px; align-items:center; padding:13px 0; border-top:1px solid #ffffff0c; }
+  .stem .name { font-size:13px; font-weight:680; text-transform:capitalize; }
+  .stem input[type=range] { margin:0; }
+  .stem button { min-height:32px; padding:0 8px; color:#b9bfd0; }
+  .stem button.on { border-color:#d94d56; background:#ec465022; color:var(--accent-bright); }
+  .stem-download { display:grid; min-height:32px; padding:0; place-items:center; color:var(--muted); }
+  .stem-download svg { width:15px; height:15px; }
+  .waveform { position:relative; min-width:0; height:40px; overflow:hidden; border:1px solid #ffffff0c; border-radius:8px; outline:0; background:#0d1119; cursor:pointer; touch-action:pan-y; }
+  .waveform:hover,.waveform:focus-visible { border-color:#a44c56; box-shadow:0 0 0 2px #ec46501c; }
+  .waveform canvas { display:block; width:100%; height:100%; }
+  .mixer-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-top:17px; padding-top:16px; border-top:1px solid #ffffff0c; }
+  .zip-link { display:inline-flex; align-items:center; gap:8px; min-height:41px; padding:0 13px; color:var(--text); font-weight:600; }
+  .zip-link svg { width:16px; height:16px; color:var(--accent-bright); }
+  .retention { color:var(--muted); font-size:11px; }
+  footer { margin:36px 0 0; color:#626a7b; font-size:11px; text-align:center; }
+  @media (max-width:640px) {
+    .shell { padding:0 17px 48px; }
+    .topbar { height:70px; }
+    .hero { margin:53px auto 29px; }
+    .subtitle { font-size:14px; }
+    .upload-card,.mixer { padding:17px; border-radius:16px; }
+    .drop { min-height:204px; padding:20px 14px; }
+    .upload-options { grid-template-columns:1fr; }
+    .upload-options .primary { width:100%; }
+    .mixer-header { align-items:flex-start; flex-direction:column; }
+    .transport { width:100%; }
+    .time { margin-left:auto; }
+    .stem { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:12px 0; }
+    .stem .name { grid-column:1 / 3; }
+    .stem .waveform { grid-column:1 / -1; grid-row:2; }
+    .stem input[type=range] { grid-column:1 / -1; grid-row:3; }
+    .stem button { grid-row:3; }
+    .stem-download { grid-column:3; grid-row:1; width:36px; justify-self:end; }
+    .mixer-footer { align-items:flex-start; flex-direction:column; }
+  }
+  @media (max-width:380px) {
+    .shell { padding-right:12px; padding-left:12px; }
+    .connection-label { padding:7px 9px; font-size:11px; }
+    .connection button { padding:5px; }
+    .brand { font-size:16px; }
+    .stem-download { grid-column:3; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 10v4m4-8v12m4-15v18m4-13v8m4-11v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      StemForge
+    </div>
+    <div class="connection checking" id="connection" aria-live="polite">
+      <span class="connection-label"><span class="dot"></span><span id="connectionText">Checking server</span></span>
+      <button id="retryConnection" type="button" aria-label="Check server connection">Retry</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">Your song, unstacked</p>
+    <h1>Every layer.<br><span>One track away.</span></h1>
+    <p class="subtitle">Separate vocals, drums, bass, and more. Then mix each stem your way.</p>
+  </section>
+
+  <section class="card upload-card" id="uploadCard">
+    <div class="drop" id="drop">
+      <div>
+        <span class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <p class="drop-title" id="dropText">Drop your audio here or <span>browse files</span></p>
+        <p class="drop-hint">MP3, WAV, FLAC, M4A, or OGG</p>
+        <p class="file-note">MAX 200 MB <span aria-hidden="true">·</span> UP TO 20 MINUTES</p>
+      </div>
+      <input type="file" id="file" accept=".mp3,.wav,.flac,.m4a,.ogg,audio/*" class="hidden">
+    </div>
+    <div class="upload-options">
+      <div class="mode-wrap">
+        <label class="field-label" for="model">Separation mode</label>
+        <select id="model">
+          <option value="4stem">4 stems · vocals, drums, bass, other</option>
+          <option value="6stem">6 stems · adds guitar and piano</option>
+        </select>
+      </div>
+      <button class="primary" id="go" disabled>
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Split my track
+      </button>
+    </div>
+    <div class="connection-box">
+      <div class="mode-wrap">
+        <label class="field-label" for="apiUrl">Backend server address</label>
+        <input class="api-input" id="apiUrl" type="url" inputmode="url" spellcheck="false" placeholder="https://your-backend.example.com" aria-describedby="connectionHelp">
+      </div>
+      <button class="primary" id="connectButton" type="button">Test connection</button>
+    </div>
+    <p class="status-line" id="connectionHelp">Connect to the FastAPI server to start separating audio.</p>
+    <div class="bar hidden" id="bar" role="progressbar" aria-label="Upload and processing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="barFill"></div></div>
+    <p class="status-line" id="status" aria-live="polite"></p>
+    <div class="trust-row">
+      <span><svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Private by design</span>
+      <span><svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Files deleted after 24 hours</span>
+      <span><svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Up to 6 separate stems</span>
+      <span><svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Lossless 24-bit WAV downloads</span>
+    </div>
+  </section>
+
+  <section class="card mixer hidden" id="mixer">
+    <div class="mixer-header">
+      <div>
+        <h2 class="mixer-title">Your stem mixer</h2>
+        <p class="mixer-caption">Adjust the balance, solo a part, or download individual stems.</p>
+      </div>
+      <div class="transport">
+        <button class="play-button" id="play">▶ &nbsp;Play</button>
+        <button id="pause">Pause</button>
+        <button id="stop">Stop</button>
+        <span class="time" id="time">0:00 / 0:00</span>
+      </div>
+    </div>
+    <input type="range" class="seek" id="seek" min="0" max="1000" value="0" aria-label="Seek through the track">
+    <div id="stems"></div>
+    <div class="mixer-footer">
+      <a class="zip-link" id="zip" href="#">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download all stems
+      </a>
+      <span class="retention">Your files are automatically deleted after 24 hours.</span>
+    </div>
+  </section>
+  <footer>Made for the love of listening closer.</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fileInput = $("file"), drop = $("drop"), goBtn = $("go"), statusEl = $("status");
+let chosen = null;
+let serverAvailable = false;
+let audioToolsAvailable = false;
+const localHosts = ["", "localhost", "127.0.0.1", "::1"];
+const isLocalPage = location.protocol === "file:" || localHosts.includes(location.hostname);
+let API = isLocalPage ? "http://127.0.0.1:8000" : "";
+try {
+  const savedApi = localStorage.getItem("stemforge-api-url");
+  if (savedApi) API = savedApi;
+} catch {}
+$("apiUrl").value = API;
+
+function setConnection(state, message, help = message) {
+  const connection = $("connection");
+  connection.className = "connection " + state;
+  $("connectionText").textContent = message;
+  $("connectionHelp").textContent = help;
+  $("connectionHelp").className = "status-line" + (state === "error" ? " err" : state === "connected" ? " ok" : state === "warning" ? " warn" : "");
+}
+
+async function checkConnection() {
+  serverAvailable = false;
+  audioToolsAvailable = false;
+  goBtn.disabled = true;
+  if (!API) {
+    setConnection("warning", "Backend address needed", "Netlify hosts the website, not the Demucs API. Deploy the backend separately with HTTPS, then enter its address here.");
+    return;
+  }
+  setConnection("checking", "Checking server", `Checking ${API}…`);
+  try {
+    const response = await fetch(API + "/api/health", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Server replied with HTTP ${response.status}`);
+    const result = await response.json();
+    if (result.status !== "ok") throw new Error("Unexpected health-check response");
+    serverAvailable = true;
+    audioToolsAvailable = result.ffmpeg_available && result.ffprobe_available;
+    goBtn.disabled = !chosen || !audioToolsAvailable;
+    if (audioToolsAvailable) {
+      setConnection("connected", "Server connected", `Connected to ${API}`);
+    } else {
+      setConnection("warning", "Install FFmpeg", `API connected at ${API}, but audio uploads need ffmpeg and ffprobe. Install FFmpeg, add it to PATH, then retry.`);
+    }
+  } catch (error) {
+    const securePage = location.protocol === "https:" && API.startsWith("http:");
+    const reason = securePage
+      ? "This secure page cannot connect to an insecure HTTP server. Use an HTTPS API address."
+      : isLocalPage
+        ? `Can't reach ${API}. Double-click start_backend.bat in the project folder to start the API.`
+        : `Can't reach ${API}. Confirm the backend is online, publicly reachable, and configured to allow this website's origin.`;
+    setConnection("error", "Server offline", reason);
+    if (error instanceof TypeError && !securePage) {
+      $("connectionHelp").title = "Connection refused or blocked by the browser.";
+    }
+  }
+}
+
+async function connectToApi() {
+  let url;
+  try {
+    url = new URL($("apiUrl").value.trim());
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+      throw new Error();
+    }
+  } catch {
+    setConnection("error", "Invalid address", "Enter a valid server address, for example http://127.0.0.1:8000");
+    return;
+  }
+  API = url.href.replace(/\/+$/, "");
+  $("apiUrl").value = API;
+  try { localStorage.setItem("stemforge-api-url", API); } catch {}
+  await checkConnection();
+}
+
+$("retryConnection").onclick = checkConnection;
+$("connectButton").onclick = connectToApi;
+$("apiUrl").onkeydown = event => {
+  if (event.key === "Enter") connectToApi();
+};
+
+// ---------- choose file ----------
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => pick(fileInput.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
+function pick(f) {
+  if (!f) return;
+  if (!/\.(mp3|wav|flac|m4a|ogg)$/i.test(f.name)) {
+    chosen = null;
+    fileInput.value = "";
+    goBtn.disabled = true;
+    setStatus("Unsupported file type. Use MP3, WAV, FLAC, M4A, or OGG.", "err");
+    return;
+  }
+  if (f.size > 200 * 1024 * 1024) {
+    chosen = null;
+    fileInput.value = "";
+    goBtn.disabled = true;
+    setStatus("File too large (maximum 200 MB).", "err");
+    return;
+  }
+  chosen = f;
+  $("dropText").textContent = f.name;
+  drop.querySelector(".drop-hint").textContent = `${(f.size / 1048576).toFixed(1)} MB · Click to choose a different file`;
+  goBtn.disabled = !serverAvailable || !audioToolsAvailable;
+  setStatus("");
+}
+function setStatus(msg, cls = "") { statusEl.textContent = msg; statusEl.className = "status-line" + (cls ? " " + cls : ""); }
+
+// ---------- upload + poll ----------
+goBtn.onclick = async () => {
+  goBtn.disabled = true;
+  $("mixer").classList.add("hidden");
+  stopAudio(); tracks = {}; duration = 0;
+  $("stems").innerHTML = "";
+  const fd = new FormData();
+  fd.append("file", chosen);
+  fd.append("model", $("model").value);
+  $("bar").classList.remove("hidden");
+  setBar(0);
+  setStatus("Uploading…");
+  try {
+    if (!serverAvailable) throw new Error("Connect to the backend server before uploading.");
+    if (!audioToolsAvailable) throw new Error("Install FFmpeg and ffprobe on the backend, add them to PATH, then retry the connection.");
+    const { job_id } = await uploadFile(fd);
+    await poll(job_id);
+  } catch (e) {
+    setStatus(e.message, "err");
+    $("bar").classList.add("hidden");
+    goBtn.disabled = !chosen || !serverAvailable || !audioToolsAvailable;
+  }
+};
+function setBar(p) {
+  const progress = Math.max(0, Math.min(100, p));
+  $("barFill").style.width = progress + "%";
+  $("bar").setAttribute("aria-valuenow", progress);
+}
+
+function uploadFile(formData) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", API + "/api/upload");
+    xhr.upload.onprogress = event => {
+      if (!event.lengthComputable) return;
+      const percent = Math.round(event.loaded / event.total * 20);
+      setBar(percent);
+      setStatus(`Uploading… ${Math.round(event.loaded / event.total * 100)}%`);
+    };
+    xhr.onload = () => {
+      let payload;
+      try { payload = JSON.parse(xhr.responseText); }
+      catch { reject(new Error("The server returned an invalid response")); return; }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(payload.detail || "Upload failed"));
+        return;
+      }
+      resolve(payload);
+    };
+    xhr.onerror = () => {
+      serverAvailable = false;
+      audioToolsAvailable = false;
+      goBtn.disabled = true;
+      setConnection("error", "Server offline", `Upload could not reach ${API}. Restart the backend, then click Retry.`);
+      reject(new Error(`Upload could not reach ${API}. Check the server connection above.`));
+    };
+    xhr.send(formData);
+  });
+}
+
+async function poll(jobId) {
+  let pct = 20;
+  while (true) {
+    let res;
+    try {
+      res = await fetch(API + "/api/jobs/" + jobId);
+    } catch {
+      serverAvailable = false;
+      audioToolsAvailable = false;
+      goBtn.disabled = true;
+      setConnection("error", "Server offline", `The server at ${API} stopped responding. Restart the backend, then click Retry.`);
+      throw new Error("Lost connection while checking the job status.");
+    }
+    if (!res.ok) throw new Error("Lost the job (it may have expired)");
+    const job = await res.json();
+    if (job.status === "error") throw new Error(job.message || "Processing failed");
+    if (job.status === "done") {
+      setBar(100);
+      setStatus("Done! Loading stems…", "ok");
+      await loadStems(jobId, job.stems);
+      goBtn.disabled = false;
+      return;
+    }
+    pct = Math.min(pct + 3, 90);
+    setBar(pct);
+    setStatus(job.status === "queued" ? "Waiting in queue…" : "Splitting… this can take a few minutes");
+    await new Promise(r => setTimeout(r, 2500));
+  }
+}
+
+// ---------- mixer (Web Audio) ----------
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+let tracks = {};            // name -> {buffer, peaks, gain, src, vol, muted, solo}
+let startedAt = 0, offset = 0, playing = false, duration = 0;
+
+const waveColor = getComputedStyle(document.documentElement).getPropertyValue("--waveform").trim();
+const waveMutedColor = getComputedStyle(document.documentElement).getPropertyValue("--waveform-muted").trim();
+
+function getWaveformPeaks(buffer, barCount = 320) {
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+  const peaks = new Float32Array(barCount);
+  for (let bar = 0; bar < barCount; bar++) {
+    const first = Math.floor(bar * buffer.length / barCount);
+    const last = Math.floor((bar + 1) * buffer.length / barCount);
+    const stride = Math.max(1, Math.floor((last - first) / 80));
+    let peak = 0;
+    for (let sample = first; sample < last; sample += stride) {
+      for (const channel of channels) peak = Math.max(peak, Math.abs(channel[sample]));
+    }
+    peaks[bar] = peak;
+  }
+  return peaks;
+}
+
+async function loadStems(jobId, names) {
+  for (const name of names) {
+    const res = await fetch(`${API}/api/jobs/${jobId}/stems/${name}`);
+    if (!res.ok) throw new Error(`Could not load the ${name} stem`);
+    const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    tracks[name] = { buffer, peaks: getWaveformPeaks(buffer), gain, src: null, vol: 1, muted: false, solo: false };
+  }
+  duration = Math.max(...Object.values(tracks).map(t => t.buffer.duration));
+  offset = 0;
+  buildMixerUI(jobId);
+  $("mixer").classList.remove("hidden");
+  updateTime(0);
+  setStatus("Ready — mix your stems below.", "ok");
+}
+
+function buildMixerUI(jobId) {
+  const box = $("stems");
+  box.innerHTML = "";
+  for (const [name, t] of Object.entries(tracks)) {
+    const row = document.createElement("div");
+    row.className = "stem";
+    const label = document.createElement("span");
+    label.className = "name"; label.textContent = name;
+    const waveform = document.createElement("div");
+    waveform.className = "waveform";
+    waveform.tabIndex = 0;
+    waveform.setAttribute("role", "slider");
+    waveform.setAttribute("aria-label", `${name} waveform position`);
+    waveform.setAttribute("aria-valuemin", "0");
+    waveform.setAttribute("aria-valuemax", String(Math.round(duration)));
+    waveform.setAttribute("aria-valuenow", "0");
+    const canvas = document.createElement("canvas");
+    canvas.setAttribute("aria-hidden", "true");
+    waveform.append(canvas);
+    t.waveform = waveform;
+    t.canvas = canvas;
+    waveform.onclick = event => {
+      const bounds = waveform.getBoundingClientRect();
+      if (bounds.width) seekTo(((event.clientX - bounds.left) / bounds.width) * duration);
+    };
+    waveform.onkeydown = event => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
+      event.preventDefault();
+      const step = Math.max(1, duration / 100);
+      const next = event.key === "Home" ? 0
+        : event.key === "End" ? duration
+          : offset + (event.key === "ArrowRight" ? step : -step);
+      seekTo(next);
+    };
+    const vol = document.createElement("input");
+    vol.type = "range"; vol.min = 0; vol.max = 100; vol.value = 100;
+    vol.setAttribute("aria-label", `${name} volume`);
+    vol.oninput = () => { t.vol = vol.value / 100; applyGains(); };
+    const mute = document.createElement("button");
+    mute.textContent = "Mute";
+    mute.onclick = () => { t.muted = !t.muted; mute.classList.toggle("on", t.muted); applyGains(); };
+    const solo = document.createElement("button");
+    solo.textContent = "Solo";
+    solo.onclick = () => { t.solo = !t.solo; solo.classList.toggle("on", t.solo); applyGains(); };
+    const dl = document.createElement("a");
+    dl.href = `${API}/api/jobs/${jobId}/stems/${name}`;
+    dl.textContent = "⬇";
+    dl.title = "Download " + name;
+    dl.className = "stem-download";
+    dl.setAttribute("aria-label", "Download " + name);
+    row.append(label, waveform, vol, mute, solo, dl);
+    box.append(row);
+  }
+  $("zip").href = `${API}/api/jobs/${jobId}/download`;
+  applyGains();
+}
+
+function applyGains() {
+  const anySolo = Object.values(tracks).some(t => t.solo);
+  for (const t of Object.values(tracks)) {
+    const silent = t.muted || (anySolo && !t.solo);
+    t.gain.gain.value = silent ? 0 : t.vol;
+  }
+}
+
+function startAudio() {
+  if (playing) return;
+  if (offset >= duration) offset = 0;
+  ctx.resume();
+  const t0 = ctx.currentTime + 0.1;          // start all stems at the same instant
+  for (const t of Object.values(tracks)) {
+    t.src = ctx.createBufferSource();
+    t.src.buffer = t.buffer;
+    t.src.connect(t.gain);
+    t.src.start(t0, offset);
+  }
+  startedAt = t0 - offset;
+  playing = true;
+  $("play").textContent = "⏸ Pause";
+  requestAnimationFrame(tick);
+}
+function pauseAudio() {
+  if (!playing) return;
+  offset = Math.min(ctx.currentTime - startedAt, duration);
+  haltSources();
+  playing = false;
+  $("play").textContent = "▶ Play";
+  updateTime(offset);
+}
+function stopAudio() { pauseAudio(); offset = 0; updateTime(0); }
+function haltSources() {
+  for (const t of Object.values(tracks)) { try { t.src && t.src.stop(); } catch {} t.src = null; }
+}
+
+$("play").onclick = () => (playing ? pauseAudio() : startAudio());
+$("pause").onclick = pauseAudio;
+$("stop").onclick = stopAudio;
+$("seek").oninput = e => seekTo((e.target.value / 1000) * duration);
+
+function fmt(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function updateTime(pos) {
+  $("time").textContent = fmt(pos) + " / " + fmt(duration);
+  $("seek").value = duration ? (pos / duration) * 1000 : 0;
+  renderWaveforms(duration ? pos / duration : 0);
+}
+function seekTo(pos) {
+  const wasPlaying = playing;
+  if (wasPlaying) pauseAudio();
+  offset = Math.max(0, Math.min(pos, duration));
+  updateTime(offset);
+  if (wasPlaying) startAudio();
+}
+function renderWaveforms(progress) {
+  const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  for (const track of Object.values(tracks)) {
+    if (!track.canvas || !track.waveform) continue;
+    const canvas = track.canvas;
+    const width = Math.max(1, track.waveform.clientWidth);
+    const height = Math.max(1, track.waveform.clientHeight);
+    const pixelWidth = Math.round(width * pixelRatio);
+    const pixelHeight = Math.round(height * pixelRatio);
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+    const context = canvas.getContext("2d");
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    const barWidth = Math.max(1, width / track.peaks.length * 0.55);
+    const center = height / 2;
+    for (let i = 0; i < track.peaks.length; i++) {
+      const barHeight = Math.max(2, track.peaks[i] * height * 0.88);
+      context.fillStyle = i / track.peaks.length <= progress ? waveColor : waveMutedColor;
+      context.fillRect(i * width / track.peaks.length, center - barHeight / 2, barWidth, barHeight);
+    }
+    track.waveform.setAttribute("aria-valuenow", String(Math.round(progress * duration)));
+    track.waveform.setAttribute("aria-valuetext", fmt(progress * duration));
+  }
+}
+window.addEventListener("resize", () => renderWaveforms(duration ? offset / duration : 0));
+function tick() {
+  if (!playing) return;
+  const pos = ctx.currentTime - startedAt;
+  if (pos >= duration) { stopAudio(); return; }
+  updateTime(pos);
+  requestAnimationFrame(tick);
+}
+
+checkConnection();
+</script>
+</body>
+</html>

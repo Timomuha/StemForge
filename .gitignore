@@ -1,0 +1,8 @@
+venv/
+.venv/
+storage/
+__pycache__/
+*.py[cod]
+.env
+.netlify/
+netlify-dist/

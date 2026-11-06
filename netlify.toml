@@ -1,0 +1,3 @@
+[build]
+command = "mkdir -p netlify-dist && cp index.html netlify-dist/index.html"
+publish = "netlify-dist"
